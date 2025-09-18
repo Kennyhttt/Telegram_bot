@@ -669,7 +669,8 @@ def main():
         load_user_data()
         
         # Get bot token
-        token = input("Enter your bot token: ").strip()
+        import os
+        token = os.environ.get("BOT_TOKEN")
         if not token:
             raise ValueError("Bot token cannot be empty")
 
