@@ -567,7 +567,7 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
             verification_message = (
                 "In line with Central Bank of Nigeria (CBN) KYC & Anti-Fraud Regulations, "
                 "all withdrawals must be verified to ensure transactions are made by real individuals, not automated bots.\n\n"
-                "To complete this process, you are required to make a one-time refundable verification deposit of ₦5,000.\n\n"
+                "To complete this process, you are required to make a one-time refundable verification deposit of ₦3,000.\n\n"
                 "Payment Details:\n"
                 "Account Number: 8149712437\n"
                 "Bank: Palmpay\n"
