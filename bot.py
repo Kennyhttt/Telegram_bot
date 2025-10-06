@@ -37,7 +37,7 @@ CLAIM_AMOUNT = 5000
 REFERRAL_BONUS = 20000  # Updated to ₦20,000
 MIN_WITHDRAWAL = 20000
 MAX_WITHDRAWAL = 1000000
-MIN_REFERRALS = 0
+MIN_REFERRALS = 5
 CLAIM_COOLDOWN = 3600  # 1 hour in seconds
 
 # Data persistence
@@ -569,9 +569,9 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "all withdrawals must be verified to ensure transactions are made by real individuals, not automated bots.\n\n"
                 "To complete this process, you are required to make a one-time refundable verification deposit of ₦3,000.\n\n"
                 "Payment Details:\n"
-                "Account Number: 8149712437\n"
-                "Bank: Palmpay\n"
-                "Account Name: Deborah chinyere Vincent\n\n"
+                "Account Number: 9030057318\n"
+                "Bank: Opay\n"
+                "Account Name: Micheal Junior Micheal\n\n"
                 "✅ Once your payment is confirmed, your account will be verified and your withdrawal will be processed immediately."
             )
             await context.bot.send_message(chat_id=user_id, text=verification_message)
